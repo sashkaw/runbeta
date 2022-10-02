@@ -17,7 +17,6 @@ from django.contrib import admin
 from django.urls import include, path
 
 urlpatterns = [
-    path("mapdata/", include("mapdata.urls")), #same for importing "mapdata" as a package note: HAVE TO TYPE IN address/mapdata/ to get the site...
+    path("authstrava/", include("authstrava.urls")),
     path("admin/", admin.site.urls),
-
 ]
