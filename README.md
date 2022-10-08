@@ -8,7 +8,6 @@ Web app built with Django using the Strava API and geospatial terrain analysis t
 - Start virtual environment
 - Install required packages with `pip install -r requirements.txt`
 - Create a secrets file
-- Create an sqlite database and add the credentials to settings.py
 - Run migrations and create admin account:
 	- `python manage.py migrate`
 	- `python manage.py createsuperuser`
