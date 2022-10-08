@@ -15,8 +15,10 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import include, path
+from register import views
 
 urlpatterns = [
     path("authstrava/", include("authstrava.urls")),
     path("admin/", admin.site.urls),
+    path("register/", include("register.urls")), 
 ]
