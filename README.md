@@ -4,7 +4,7 @@ Web app built with Django using the Strava API and geospatial terrain analysis t
 # For local development:
 
 - Clone the repo
-- Create a virtual environment in the same folder.
+- Create a virtual environment in the same folder
 - Start virtual environment
 - Install required packages with `pip install -r requirements.txt`
 - Create a secrets file
