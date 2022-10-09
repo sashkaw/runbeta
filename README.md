@@ -14,5 +14,5 @@ Web app built with Django using the Strava API and geospatial terrain analysis t
 	- `python manage.py makemigrations mapdata`
 	- `python manage.py migrate`
 - Start development server with `python manage.py runserver`
-- Open your browser and navigate to `http://127.0.0.1:8000/mapdata/` to see the homepage
+- Open your browser and navigate to `http://127.0.0.1:8000/` to see the homepage
 
