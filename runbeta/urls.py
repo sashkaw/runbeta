@@ -22,9 +22,9 @@ from register import views as register_views
 urlpatterns = [
     path("admin/", admin.site.urls),
     # Note: the default login view will search through the "templates" folders looking for a folder called "registration" with a login.html file inside
-    path("login/", auth_views.LoginView.as_view(), name = "login"), # Same currently as authstrava/login
+    path("login/", auth_views.LoginView.as_view(), name = "login"),
     path("logout/", auth_views.LogoutView.as_view(), name = "logout"),
     path("register/", include("register.urls")), 
     path("getdata/", include("getdata.urls")),
-    path("oauth/", include("social_django.urls", namespace="social")), # to do -> link this with template??
+    path("oauth/", include("social_django.urls", namespace="social")),
 ]
