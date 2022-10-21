@@ -27,7 +27,15 @@ if os.path.isfile(dotenv_file):
     dotenv.load_dotenv(dotenv_file)
 
 # UPDATE secret key
-SECRET_KEY = os.environ['SECRET_KEY'] # Instead of your actual secret key
+SECRET_KEY = os.environ["SECRET_KEY"] # Instead of your actual secret key
+DB_USERNAME = os.environ["DB_USERNAME"]
+DB_PASSWORD = os.environ["DB_PASSWORD"]
+DB_HOST = os.environ["DB_HOST"]
+DB_PORT = os.environ["DB_PORT"]
+#SOCIAL_AUTH_LOGIN_REDIRECT_URL = os.environ["SOCIAL_AUTH_LOGIN_REDIRECT_URL"]
+#SOCIAL_AUTH_LOGIN_URL = os.environ["SOCIAL_AUTH_LOGIN_URL"]
+SOCIAL_AUTH_STRAVA_KEY = os.environ["SOCIAL_AUTH_STRAVA_KEY"]
+SOCIAL_AUTH_STRAVA_SECRET = os.environ["SOCIAL_AUTH_STRAVA_SECRET"]
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -38,7 +46,8 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
-    "authstrava.apps.AuthstravaConfig",
+    "getdata.apps.GetdataConfig", # Include getdata app
+    "register.apps.RegisterConfig", # Include register app
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -46,7 +55,8 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "crispy_forms", 
-    "register.apps.RegisterConfig", #include register app
+    'django.contrib.gis', # For GeoDjango
+    'social_django', # for Django social auth
 ]
 
 MIDDLEWARE = [
@@ -57,6 +67,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    'social_django.middleware.SocialAuthExceptionMiddleware',
 ]
 
 ROOT_URLCONF = "runbeta.urls"
@@ -72,6 +83,8 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                'social_django.context_processors.backends',
+                'social_django.context_processors.login_redirect',
             ],
         },
     },
@@ -85,8 +98,12 @@ WSGI_APPLICATION = "runbeta.wsgi.application"
 
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+        'ENGINE': "django.contrib.gis.db.backends.postgis",
+        'NAME': "runbeta_db",
+        'USER': DB_USERNAME,
+        'PASSWORD': DB_PASSWORD,
+        'HOST': DB_HOST,
+        'PORT': DB_PORT,
     }
 }
 
@@ -134,3 +151,24 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 #Crispy makes for cleaner form rendering
 Crispy_Template_Pack = "bootstrap4"
+
+# Recommended setting for using postgres with django social auth 
+SOCIAL_AUTH_JSONFIELD_ENABLED = True
+
+# for social auth
+AUTHENTICATION_BACKENDS = (
+    "social_core.backends.strava.StravaOAuth", 
+    "django.contrib.auth.backends.ModelBackend",
+)
+
+# For regular login / logout
+# Default URL that users get redirected for login
+LOGIN_URL = "/login/"
+LOGOUT_URL = "/logout/"
+# Default URL where users get redirected to after logging in (eg "/profile/")
+# A redirect url specified locally takes precedence over this value
+LOGIN_REDIRECT_URL = "/register/settings/"
+
+# For django social auth
+SOCIAL_AUTH_LOGIN_URL = "/"
+SOCIAL_AUTH_LOGIN_REDIRECT_URL = "/register/settings/"

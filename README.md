@@ -11,8 +11,8 @@ Web app built with Django using the Strava API and geospatial terrain analysis t
 - Run migrations and create admin account:
 	- `python manage.py migrate`
 	- `python manage.py createsuperuser`
-	- `python manage.py makemigrations mapdata`
+	- `python manage.py makemigrations`
 	- `python manage.py migrate`
 - Start development server with `python manage.py runserver`
-- Open your browser and navigate to `http://127.0.0.1:8000/` to see the homepage
+- Open your browser and navigate to `http://127.0.0.1:8000/login` to see the login page
 

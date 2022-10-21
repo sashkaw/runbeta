@@ -1,0 +1,22 @@
+{% block content %}
+  {% if user and not user.is_anonymous %}
+    <a>Hello, {{ user.first_name }}!</a>
+    <br>
+    <p></p><a href="/logout">Logout</a></p>
+  {% else %}
+    <h2>Login</h2>
+    <form method="post">
+      {% csrf_token %}
+      {{ form.as_p }}
+      <button type="submit">Login</button>
+    </form>
+    <br>
+    <p><strong>-- OR --</strong></p>  
+    <!--NOTE: The important part so that the user is redirected back to the page they came from is that ?next={{ next }} such that if-->
+    <!--The user came from "/getdata/" then {{ next }} will equal "/getdata/"-->
+    <a href="{% url 'social:begin' 'strava' %}?next={{ next }}">Login with Strava</a>
+    <!--NOTE: The below code would get passed the LOGIN_REDIRECT_URL parameter in settings.py-->
+    <!--a href="{% url 'social:begin' 'strava' %}">Login with Strava</a-->
+  {% endif %}
+
+{% endblock %}

@@ -1,0 +1,24 @@
+<!--extends 'base.html'-->
+
+{% block content %}
+  <h2>Settings</h2>
+  <h3><a>User: {{ user.first_name }}</a></h3>
+
+  <h3>Strava Connection:</h3>
+  {% if strava_login %}
+    <p>Connected as <a href="https://strava.com/{{ strava_login.extra_data.login }}/" target="_blank">{{ athlete_name }}</a></p>
+    {% if can_disconnect %}
+      <form method="post" action="{% url 'social:disconnect' 'strava' %}">
+        {% csrf_token %}
+        <button type="submit">Disconnect from Strava</button>
+      </form>
+    {% else %}
+      <button type="button" disabled>Disconnect from Strava</button>
+      <p style="color: red">You must <a href="{% url 'password' %}">define a password</a> for your account before disconnecting from Strava.</p>
+    {% endif %}
+  {% else %}
+    <a href="{% url 'social:begin' 'strava' %}">Connect to Strava</a>
+  {% endif %}
+
+
+{% endblock %}
