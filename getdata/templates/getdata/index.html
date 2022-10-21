@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Strava Data</title>
+    {{ map_test.header.render|safe }}
+</head>
+
+{% load static %}
+  <!--link rel="stylesheet" href="{% static 'polls/style.css' %}"-->
+
+  <body>
+    
+    <div class="userdetails"><strong>Strava user details:</strong>
+      
+      {% if current_athlete %}
+      <ul>
+        <li>
+          <strong>Current athlete: </strong>
+          {{ athlete_name }}
+        </li>
+      </ul>
+      {% endif %}
+
+    </div>
+    <div class="showroutes">
+      {% if routes %}
+      <strong>Routes: </strong>
+      <ol>
+        {% for route in routes %}
+          <li>{{ route }}</li>
+        {% endfor %}
+      </ol>
+      {% endif %}
+    </div>
+
+
+    <div><h1>Map of strava route # <strong>{{ route_test.id }}</strong>:</h1></div>
+
+    {% if map_test %}
+      {{ map_test.html.render|safe }}
+    {% endif %}
+
+    <script>
+      {{ map_test.script.render|safe }}
+    </script>
+  </body>
+
+  </html>
+  

@@ -1,0 +1,21 @@
+
+{% block content %}
+  <h2>Homepage</h2>
+  <p>Hello {{ user.first_name }}!</p>
+  <p> Strava Access Token: {{ access_token }}</p>
+  <ul>
+    <li>
+      <strong>Athlete name: </strong>
+      {{ athlete_name }}
+    </li>
+
+  </ul>
+  {% if all_routes %}
+  <ol>
+    {% for route in all_routes %}
+      <li>{{ route }}</li>
+    {% endfor %}
+  </ol>
+  {% endif %}
+
+{% endblock %}
