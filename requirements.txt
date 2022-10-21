@@ -54,3 +54,5 @@ tzdata==2022.4
 units==0.7
 uritemplate==3.0.1
 urllib3==1.26.12
+windows-curses==2.3.0; sys_platform == 'Windows'
+
