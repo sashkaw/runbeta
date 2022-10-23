@@ -26,14 +26,10 @@ dotenv_file = os.path.join(BASE_DIR, ".env")
 if os.path.isfile(dotenv_file):
     dotenv.load_dotenv(dotenv_file)
 
-# UPDATE secret key
-SECRET_KEY = os.environ["SECRET_KEY"] # Instead of your actual secret key
-DB_USERNAME = os.environ["DB_USERNAME"]
-DB_PASSWORD = os.environ["DB_PASSWORD"]
+# Load secrets from dotenv
+SECRET_KEY = os.environ["DJANGO_SECRET_KEY"]
 DB_HOST = os.environ["DB_HOST"]
 DB_PORT = os.environ["DB_PORT"]
-#SOCIAL_AUTH_LOGIN_REDIRECT_URL = os.environ["SOCIAL_AUTH_LOGIN_REDIRECT_URL"]
-#SOCIAL_AUTH_LOGIN_URL = os.environ["SOCIAL_AUTH_LOGIN_URL"]
 SOCIAL_AUTH_STRAVA_KEY = os.environ["SOCIAL_AUTH_STRAVA_KEY"]
 SOCIAL_AUTH_STRAVA_SECRET = os.environ["SOCIAL_AUTH_STRAVA_SECRET"]
 
@@ -99,9 +95,9 @@ WSGI_APPLICATION = "runbeta.wsgi.application"
 DATABASES = {
     "default": {
         'ENGINE': "django.contrib.gis.db.backends.postgis",
-        'NAME': "runbeta_db",
-        'USER': DB_USERNAME,
-        'PASSWORD': DB_PASSWORD,
+        'NAME': os.environ.get('POSTGRES_NAME'),
+        'USER': os.environ.get('POSTGRES_USER'),
+        'PASSWORD': os.environ.get('POSTGRES_PASSWORD'),
         'HOST': DB_HOST,
         'PORT': DB_PORT,
     }

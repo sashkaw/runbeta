@@ -7,4 +7,5 @@ app_name = "getdata"
 urlpatterns = [
   path("", views.getStravaData, name="getstravadata"),
   #path("details/", views.details, name="details"),
+  path("gee/", views.getEarthData, name = "getearthdata"),
 ]

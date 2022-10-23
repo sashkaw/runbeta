@@ -1,0 +1,37 @@
+version: "3.9"
+   
+services:
+  db:
+    # Make sure to specify the version below to avoid conflicts
+    image: postgis/postgis:14-3.3
+    volumes:
+    # Create a volumes mount named ./data/db and bind it to 
+    # a dedicated directory within the container (/var/lib/postgresql/data)
+      - ./data/db:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - PGUSER=${PGUSER}
+    # Health check to see if database is ready for the web container to access it (doesn't work currently)
+    #healthcheck:
+    #  test: ["CMD-SHELL", "pg_isready"]
+    #  interval: 5s
+    #  timeout: 5s
+    #  retries: 5
+
+  web:
+    build: .
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - .:/code
+    ports:
+      - "8000:8000"
+    environment:
+      - POSTGRES_NAME=${POSTGRES_NAME}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    depends_on:
+      - db
+        # Check to see if database is ready (doesn't work currently)
+        #condition: service_healthy

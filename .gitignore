@@ -1,8 +1,12 @@
 #OSX
 .DS_Store
 
+#JSON files
+*.json
+
 #Misc
 ignore/
+data/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

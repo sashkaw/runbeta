@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Google Earth Engine</title>
+    {{ map.header.render|safe }}
+</head>
+
+{% load static %}
+  <!--link rel="stylesheet" href="{% static 'polls/style.css' %}"-->
+
+  <body>
+    <div><h1>Map of Google Earth Engine Data: </h1></div>
+
+    {% if map %}
+      {{ map.html.render|safe }}
+    {% endif %}
+
+    <script>
+      {{ map.script.render|safe }}
+    </script>
+  </body>
+
+  </html>
+  

@@ -1,4 +1,4 @@
-from django.db import models
+#from django.db import models
 from django.shortcuts import redirect
 from django.utils import timezone
 from django.contrib import admin
