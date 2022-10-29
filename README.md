@@ -21,6 +21,7 @@ Web app built with Django using the Strava API and geospatial terrain analysis t
 - Restart the container
 	- `docker compose up`
 - Open your browser and navigate to `http://127.0.0.1:8000/login` to see the login page
+- To stop the container you can run `docker compose down`
 
 # Troubleshooting:
 - If you run into Docker + postgres / DB issues and you want to start from scratch:
