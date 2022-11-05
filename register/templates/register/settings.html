@@ -2,7 +2,7 @@
 
 {% block content %}
   <h2>Settings</h2>
-  <h3><a>User: {{ user.first_name }}</a></h3>
+  <h3><a>User: {{ user.username }}</a></h3>
 
   <h3>Strava Connection:</h3>
   {% if strava_login %}
@@ -20,5 +20,8 @@
     <a href="{% url 'social:begin' 'strava' %}">Connect to Strava</a>
   {% endif %}
 
+{% if user.is_authenticated %}
+  <p><a href="{% url 'logout' %}">Log Out</a></p>
+{%endif%}
 
 {% endblock %}

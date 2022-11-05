@@ -164,6 +164,7 @@ LOGOUT_URL = "/logout/"
 # Default URL where users get redirected to after logging in (eg "/profile/")
 # A redirect url specified locally takes precedence over this value
 LOGIN_REDIRECT_URL = "/register/settings/"
+LOGOUT_REDIRECT_URL = "/register/"
 
 # For django social auth
 SOCIAL_AUTH_LOGIN_URL = "/"
