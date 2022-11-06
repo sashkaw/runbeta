@@ -34,19 +34,19 @@ from .forms import RegisterForm
 
 # Create views here:
 def register(request):
-    if request.method == "POST":  # check if response was submitted by the user
-        form = RegisterForm(request.POST)
-        if form.is_valid(): # if we got all the responses we wanted?
-            user = form.save()
-            login(request, user, backend='django.contrib.auth.backends.ModelBackend')
-
+  if request.method == "POST":  # check if response was submitted by the user
+      form = RegisterForm(request.POST)
+      if form.is_valid(): # if we got all the responses we wanted?
+        user = form.save()
+        login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+        messages.success(request, "Registration Success!")
         #return redirect("/home")
         return redirect("/register/settings/")
         #return redirect("home/")
-    else:
+  else:
         form = RegisterForm()
-
-    return render(request, "register/register.html", {"form":form}) #Add an "invalid info" message
+        messages.error(request, "Registration failed")
+  return render(request, "register/register.html", {"form":form}) #Add an "invalid info" message
 
 # Built in Django user login already checks that urls are safe and looks for next parameter -> This login functon seems to be redundant
 #def login(request):
