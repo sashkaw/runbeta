@@ -26,11 +26,18 @@ class ActivityManager(models.Manager):
     # Return the activity object 
     return new_activity
 
+# Stores all activities for a given user (I hope?)
+class UserActivities(models.Model):
+  user_id = models.ForeignKey(User, on_delete=models.CASCADE)
+
 # Class Activity
 class Activity(models.Model):
 
   # User name
   user_id = models.ForeignKey(User, on_delete=models.CASCADE)
+
+  # foreignkey key relationship for useractivities
+  useractivities = models.ForeignKey(UserActivities, on_delete=models.CASCADE)
 
   # Name of activity
   activity_id = models.CharField(max_length=200)

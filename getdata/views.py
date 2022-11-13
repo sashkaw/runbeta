@@ -1,42 +1,42 @@
 # Django imports
+import json
+import os
+import time
+from curses.ascii import HT
 from multiprocessing import context
 from re import T
-from curses.ascii import HT
 from tokenize import String
-from django.shortcuts import get_object_or_404, render, redirect
-from django.http import HttpResponse, HttpResponseRedirect
-from django.views.generic import TemplateView
-from django.urls import reverse
-from django.views import generic
-from django.utils import timezone
-from django.urls import reverse
-from django.contrib.auth.models import User
-from django.contrib.auth.decorators import login_required
-from django.contrib.auth.forms import AdminPasswordChangeForm, PasswordChangeForm, UserCreationForm
-from django.contrib.auth import update_session_auth_hash, login, authenticate
+
+import ee
+import folium
+import numpy as np
+import pandas as pd
+import polyline
 from django.contrib import messages
+from django.contrib.auth import authenticate, login, update_session_auth_hash
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.forms import (AdminPasswordChangeForm,
+                                       PasswordChangeForm, UserCreationForm)
+from django.contrib.auth.models import User
 from django.contrib.gis.geos import LineString
 from django.core.serializers import serialize
 from django.db import connection
-
-# Custom models
-from .models import Activity
-
+from django.http import HttpResponse, HttpResponseRedirect
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+from django.utils import timezone
+from django.views import generic
+from django.views.generic import TemplateView
+from dotenv import load_dotenv
+from folium import Polygon, plugins
+from folium.plugins import MarkerCluster
 # Package imports
 from social_django.models import UserSocialAuth
 from social_django.utils import load_strategy
-import os
-import time
-from dotenv import load_dotenv
-import numpy as np
-import pandas as pd
-import folium
-from folium import Polygon, plugins
-from folium.plugins import MarkerCluster
-import polyline
 from stravalib.client import Client
-import ee
-import json
+
+# Custom models
+from .models import Activity
 
 # Constants
 ELEVATION_EXTRACTION_RESOLUTION = 10
@@ -408,5 +408,29 @@ def render_strava_data(request):
 
   return render(request, template, context)
 
-  
+@login_required
+def prep_strava(request):
+  template = "getdata/index.html"
+  user = request.user
+  if user.is_authenticated:
+    strava_access_token = get_token(user, "strava")
+    client = Client(access_token = strava_access_token)
+    #current_athlete = client.get_athlete()
+    #athlete_name = current_athlete.firstname + " " + current_athlete.lastname
+    return client
+  else:
+    context = {
+      "current_athlete": current_athlete,
+      "athlete_name": athlete_name,
+    }
+  return render(request, template, context)
 
+
+#Lots of repeat in this. Can we make this more efficient with better programming OR class based views?
+@login_required
+def get_stream(request, activity, streamtype):
+  #call prep_strava, which will throw an exception if the user isn't authenticated
+  client = prep_strava(request)
+  #get requested stream
+  desired_stream = client.get_activity_streams(activity_id = activity, types = streamtype, resolution ='medium' )
+  return desired_stream
