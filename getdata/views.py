@@ -9,8 +9,6 @@ from django.views.generic import TemplateView
 from django.urls import reverse
 from django.views import generic
 from django.utils import timezone
-#from django.template import loader
-#from django.http import Http404
 from django.urls import reverse
 from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required
@@ -18,11 +16,11 @@ from django.contrib.auth.forms import AdminPasswordChangeForm, PasswordChangeFor
 from django.contrib.auth import update_session_auth_hash, login, authenticate
 from django.contrib import messages
 from django.contrib.gis.geos import LineString
-#from django.contrib.gis.db.models.functions import Envelope, Intersection
 from django.core.serializers import serialize
+from django.db import connection
 
 # Custom models
-from .models import Route, Elevation
+from .models import Activity
 
 # Package imports
 from social_django.models import UserSocialAuth
@@ -34,23 +32,15 @@ import numpy as np
 import pandas as pd
 import folium
 from folium import Polygon, plugins
+from folium.plugins import MarkerCluster
 import polyline
 from stravalib.client import Client
-
-#import dill
-import os
-#from os.path import exists
-from dotenv import load_dotenv
-#import pandas as pd
-#import matplotlib.pyplot as plt
-#import numpy as np
-#from scipy import optimize
-#from IPython.display import Image
-#import folium
 import ee
 import json
-#%matplotlib inline
 
+# Constants
+ELEVATION_EXTRACTION_RESOLUTION = 10
+ELEVATION_DATA_NAME = "USGS/3DEP/1m"
 
 # Create your views here.
 
@@ -64,7 +54,77 @@ def get_token(user, provider):
       social.refresh_token(strategy)
   return social.extra_data['access_token']
 
-# Below code is just to check that we can get data from strava when authenticated with strava using django social auth
+
+# Function to create Folium map object
+# map_data_dict should be a dictionary of the form
+# {
+#   <data_type>: <data>,
+#   <data_type>: <data>,
+# }
+# data_type should be one of "polygon" for vector polygon data, "line" for vector line data, "point" for vector point data, or "raster" for raster data
+# data should be a spatial data object (eg LineString, Point)
+def create_map(map_data_dict, centroid):
+  
+  # Create web map using Folium
+  #figure = folium.Figure()
+  
+  # Center map on the centroid passed to this function, set zoom and background tile layer
+  m = folium.Map(
+      location=centroid, 
+      zoom_start=12,
+      tiles="Stamen Terrain"
+    )
+
+  # Create feature group so we can toggle vector data on and off
+  fg=folium.FeatureGroup(name='Points', show=False)
+  m.add_child(fg)
+  marker_cluster = MarkerCluster().add_to(fg)
+
+  # Create map layers from the input data
+  for dt, md in map_data_dict.items():
+
+    # Create Folium layers from input data, or raise error if invalid data type
+    if(dt == "point"):
+      # Create markers on the map for all points in the input data 
+      for point in md:
+        #folium.Marker(point, control=True).add_to(m)
+        folium.Marker(point, control=True).add_to(marker_cluster)
+
+    elif(dt == "line"):
+      # Create polyline and add it to the folium map
+      #folium.PolyLine(md, color='red', control=True).add_to(m)
+      folium.PolyLine(md, color='red', control=True).add_to(marker_cluster)
+
+    elif(dt == "polygon"):
+      folium.Polygon(md, color = "blue", control=True).add_to(m)
+
+    elif(dt == "raster"):
+      # Create Folium raster tile layer and add it to the map
+      folium.raster_layers.TileLayer(
+          #Get URL to the elevation data on Google Earth Engine
+          tiles=md, 
+          #tiles="Stamen Terrain",
+          attr="Google Earth Engine",
+          name=ELEVATION_DATA_NAME, # TODO: Potentially add option to pass other names and attr sources to this TileLayer() creation
+          overlay=True,
+          control=True,
+      ).add_to(m)
+
+    else:
+      raise TypeError("In function show_map(), argument data_type is invalid. Expected one of 'polygon', 'line', 'point', or 'raster'\n")
+
+  # Add toggle on/off for layer visibility
+  folium.LayerControl().add_to(m)
+
+  # Render the folium map
+  #figure.render()
+  #display(m)
+  m = m._repr_html_()
+
+  #return figure
+  return m
+
+# Below code is just a test for checking that we can get data from strava when authenticated with strava using django social auth
 """@login_required
 def details(request):
   template = "getdata/details.html"
@@ -88,56 +148,97 @@ def details(request):
   }
   return render(request, template, context)"""
 
+# Function to generate points at a specified distance along lines 
+# Inputs: integer step_distance (in meters)
+def interpolate_points(step_distance):
+  # PostGIS query to create points along a line at 10m increments 
+  # The Generate_Series generates a series of numbers starting at 0, spaced apart by the default value of 1, and ending at the value equal to the (<length of the line> / 10) rounded up and cast to an integer
+  # Update: don;t need to use ST_LENGTH as we already distance in meters from strava
+  # CROSS JOIN creates paired combinations of the series we generated (0, 1, ..... CEIL(ST....)) to the table getdata_route, so that we now have 10 rows for each row in the original table
+  # EG for the first row in getdata_route we join the first value in the series (eg route_id #1, 0), and for the second we have (route_id #1, 1) and so on through (route_id #n, CEIL(ST...))
+  # Here 'line' refers to linestring in DB created from routes (see models.py) -> in other queries people often refer to this as 'geom'
+  # The LEAST statement produces a distance at some fraction a long a line by multiplying the number in column n (a number from 0 to route length / 10) by (10 / length of route)
+  # EG for n = 0 and length of 5000 m that would be 0 * (10 m / 5000 m) = 0
+  # And for n = (5000 / 10) you get (5000 / 10) * (10 / 5000) = 1
+  # We do this because ST_LineInterpolatePoint takes a float between 0 and 1 for its second argument (which is the position along the line)
+  # The function then returns a point interpolated along the line at that location (eg beginning of line would be 0 and end of line would be 1)
+  # The output of the function is then cast to a POINT object with EPSG:4326
+  # The CREATE TABLE statement then creates a new table called points_along_routes copied from
+  # the result of selecting n (a number from 0 to the length of the route divided by 10)
+  # and the corresponding interpolated point we calculated above
+  # Output should look something like:
+  # route_id | n | point_on_route
+  # 1        | 0 | <ST_Point object at start of route>
+  # 2        | 1 | <ST_Point object at first step along route>
+  #...
+  
+  # To execute raw SQL queries directly:
+  interpolate_points_query = f"""CREATE TABLE points_along_routes AS (
+                                  SELECT route_id,
+                                        n, 
+                                        ST_LineInterpolatePoint(line, LEAST(n*({step_distance}/distance), 1.0))::GEOMETRY(POINT, 4326) AS point_on_route
+                                  FROM getdata_activity 
+                                  CROSS JOIN 
+                                    Generate_Series(0, CEIL(distance/{step_distance})::INT) AS n
+                                )"""
+                
+  #raw_query = "select ST_GeometryType(line) from getdata_route;" # For testing that query code works
+  with connection.cursor() as cursor:
+    cursor.execute(interpolate_points_query)
+    #raw_query_output = cursor.fetchall()
+    #print(raw_query_output)
+
 # View to test that app can connect successfull to Google Earth Engine
-def getEarthData(request):
-  template = "getdata/earthengine.html"
+# Note that the area of interest should be in geojson format
 
-  # Get polyline of route
+test_sampling_points = {
+      "type": "MultiPoint",
+      "coordinates": 
+      [
+          [-110.71, 32.31],
+          [-110.68, 32.32],
+          [-110.66, 32.30]
+      ]
+    }
 
-  # Get bounding box of polyline
+# Function to get earth raster data and sample raster values at points of interest
+def get_earth_data(data_name, sample_points):
 
-  # Somehow download only the google earth data for a terrain dataset for that bounding box
+  # Get an object to work with
+  #recent_route = Route.objects.get(pk=1) # For testing
 
-  # Add points every 'x' meters to the polyline?
-
-  # Intersect the clipped google earth data with the polyline
-
-  # Extract values from intersected data to an array corresponding to each point in the route?
-
-  # Create figure object so we can plot things inside of it
-  figure = folium.Figure() 
-
-  # Create Folium basemap object
-  m = folium.Map(
-      location = [32.352343, -110.801944],
-      zoom_start=12
-  )
-
-  # Add map to figure
-  m.add_to(figure)
-
-  # Get data of US counties so we can filter for the area of interest
-  counties = ee.FeatureCollection("TIGER/2018/Counties")
-  pimaCounty = counties.filter(ee.Filter.eq("NAME", "Pima"))
-  #print(pimaCounty.first().getInfo())
+  # Convert data to geojson
+  #aoi_geojson = json.loads(area_of_interest.geojson)
+  #aoi_geojson = json.loads(area_of_interest)
+  sample_points_ee = ee.Geometry(sample_points)
+  #print(aoi_ee.getInfo())
 
   # Get elevation data
   # Note: the USGS 3D Elevation Profile data seems to be the best
   # Elevation data that Google Earth Engine offers (at 1m resolution)
-  elevation_data = ee.ImageCollection('USGS/3DEP/1m')
+  # Extract the most recent image from the collection
+  earth_data = ee.ImageCollection(data_name)
 
-  # Get NAIP data (RGB and near infrared? -> may come in handy for image classification)
-  #terrainData = ee.ImageCollection('USDA/NAIP/DOQQ').filter(ee.Filter.date('2017-01-01', '2018-12-31'))
-  #print(terrainData.getInfo())
-  #trueColor = terrainData.select(['R', 'G', 'B'])
+  # Get earth data tiles for area of interest (note that filterBounds does not clip the data, it just selects overlapping tiles)
+  earth_data_filter_aoi = earth_data.filterBounds(sample_points_ee) # For image collection 
 
-  # Extract terrain data for area of interest
-  #terrainPima = trueColor.filterBounds(pimaCounty)
-  #print(terrainPima.first().getInfo())
-  elevation_data = elevation_data.filterBounds(pimaCounty)
+  # Get most recent image
+  #earth_data_recent = earth_data_filter_aoi.limit(1, 'system:time_start', False).first()
 
-  # Style for elevation data
-  elevationStyle = {
+  # Reduce image collection
+  #earth_data_reduced = earth_data_filter_aoi.reduce(ee.Reducer.max())
+  
+  # Get max value (returns image)
+  earth_data_max = earth_data_filter_aoi.max()
+
+  # Sample earth data at points of interest
+  #earth_data_sample = earth_data_max.sample(sample_points_ee)
+  earth_data_clipped = earth_data_max.clip(sample_points_ee)
+  # TODO: Figure out how to convert earth data to numpy array or list
+  #print(earth_data_clipped.toArray().getInfo())
+
+  # Style parameters for Earth Engine data
+  earth_data_style = {
     "min": 0,
     "max": 3000,
     "palette": [ #list of colors
@@ -147,50 +248,61 @@ def getEarthData(request):
     "opacity": 0.8 #transparency
   }
 
-  # Style for NAIP DATA
-  #trueColorVis = {
-  #    "min": 0.0,
-  #    "max": 255.0,
-  #}
+  # Get URL of tile layer created from the processed Earth Engine data
+  map_id_dict = earth_data_clipped.getMapId(earth_data_style)
+  #print(map_id_dict)
 
-  # Add map to folium map
-  #map_id_dict = ee.Image(terrainPima.first()).getMapId(trueColorVis)
-  #map_id_dict = terrainPima.getMapId(trueColorVis)
-  map_id_dict = elevationPima.getMapId(elevationStyle)
-  #print(map_id_dict["tile_fetcher"].url_format)
+  # Want to get values at points
+  # For a given point, take the most recent value
+  # TODO: figure out how to (use reduce?) to get most recent values at points
 
-  # Create Folium raster tile layer from elevation data and add it to the map we created above
-  folium.raster_layers.TileLayer(
-      #Get URL to the elevation data on Google Earth Engine
-      tiles = map_id_dict["tile_fetcher"].url_format, 
-      #tiles = "Stamen Terrain",
-      attr = "Google Earth Engine",
-      name = "3DEP",
-      overlay = True,
-      control = True,
-  ).add_to(m)
+  #map_id_dict = earth_data_filter_aoi.getMapId(earth_data_style)
+  earth_data_url = map_id_dict["tile_fetcher"].url_format
+  
+  #return render(request, template, context)
+  return earth_data_url
 
-  # Add layer control (to loggle layers on/off)
-  m.add_child(folium.LayerControl())
+# Function to render a web map of earth engine data 
+def render_earth_data(request):
+  # Define template to render
+  template = "getdata/earthengine.html"
 
-  # Render the figure object
-  figure.render()
+  # Get google earth data
+  data_url = get_earth_data(data_name=ELEVATION_DATA_NAME, sample_points=test_sampling_points)
 
-  context = {
-    "map": figure,
+  # Reverse point data for use with folium
+  sampling_points_yx = map(lambda coords: coords[::-1], test_sampling_points["coordinates"])
+
+  # Create dictionary of spatial data to add to map
+  map_data = {
+    "point": sampling_points_yx,
+    #"line": list(sampling_points_yx),
+    "raster": data_url,
   }
 
-  # Return the map object
+  # Create Folium map from the google earth data
+  folium_map = create_map(
+    map_data_dict=map_data,
+    centroid=[32.31, -110.71])
+  
+  # Context object to render
+  context = {
+    "data_name": ELEVATION_DATA_NAME,
+    "aoi": test_sampling_points,
+    "map": folium_map,
+    }
+
   return render(request, template, context)
+
 
 # Specify the url we redirect the user to after they are logged in
 # login_required will redirect the user to the login page (specifed at LOGIN_URL in settings)
 # Note that the code in getStravaData does not execute until after the user is logged in and visits the page again
 # The default redirect URL after the user is logged in is specified in settings.SOCIAL_AUTH_LOGIN_REDIRECT_URL
 @login_required
-def getStravaData(request):
+def render_strava_data(request):
+  # Define template to render
   template = "getdata/index.html"
-  #template = "getdata/details.html"
 
   # Get the current user from the request
   user = request.user
@@ -215,8 +327,9 @@ def getStravaData(request):
       # Get test data about athlete
       current_athlete = client.get_athlete()
       athlete_name = current_athlete.firstname + " " + current_athlete.lastname
-      all_routes = client.get_routes(limit = 5)
-      routes = client.get_routes(limit = 10)
+      #routes = client.get_routes(limit = 10)
+      # Get all routes from Strava activity
+      routes = client.get_routes() # TODO: Figure out why this is only getting two records
 
       # List of route objects
       route_list = []
@@ -232,145 +345,55 @@ def getStravaData(request):
         # and GeoDjango spatial objects are created from (long, lat) format
         long_lat = list(map(lambda coords: coords[::-1], lat_long))
         
-        # Create new route object for each route
-        current_route = Route.objects.create_route(
-          user=user,
-          route=str(route.id),
-          date=timezone.now(),
-          distance=route.distance,
-          line=LineString(long_lat), # Convert lat_long data to GeoDjango LineString format
-        )
-        route_list.append(current_route)
-        current_route.save() # Save the object in the database
-    
-      # Get a recent route for testing
-      recent_route = route_list[0]
-      
-      # Convert (long, lat) data back to (lat, long) for folium
-      route_yx = list(map(lambda coords: coords[::-1], recent_route.line))
-      
-      # Plot route on map
-      centroid = [
-          np.mean([coord[0] for coord in route_yx]), 
-          np.mean([coord[1] for coord in route_yx])
-      ]
-
-      # Convert route data to geojson
-      route_line = recent_route.line.geojson
-      route_line = json.loads(route_line)
-      #print(route_line)
-      route_line_ee = ee.Geometry(route_line)
-      #print(route_line_ee.getInfo())
-
-
-      # Get bounding box for route data in string format containing geojson TODO: See if there is a better way to extract this data?
-      route_bbox = recent_route.line.envelope.geojson
-      # Convert the string to a geojson dictionary
-      route_bbox = json.loads(route_bbox)
-      # Convert route bounding box to GEE format
-      #route_bbox_ee = ee.Feature(route_bbox) # Doesn't work for filterBounds()
-      # Create GEE Geometry object from bounding box
-      route_bbox_ee = ee.Geometry(route_bbox)
-
-      # Get elevation data
-      # Note: the USGS 3D Elevation Profile data seems to be the best
-      # Elevation data that Google Earth Engine offers (at 1m resolution)
-      # Extract the most recent image from the collection
-      elevation_data = ee.ImageCollection('USGS/3DEP/1m')
-      #elevation_data = elevation_data.limit(1, "system:time_start").first()
-      #print(elevation_data)
-      # Note: Google Earth Engine documentation states that GEE handles projections automatically
-      #print(elevation_data.getInfo()) #Coordinate system: EPSG:26910
-      #elevation_crs = elevation_data.first().projection().crs().getInfo()
-      #elevation_crs = ee.Projection(elevation_crs)
-      #print(elevation_crs)
-
-      # Project route bounding box to elevation crs
-      # Have to specify maxError or function will throw error
-      #route_bbox_ee = route_bbox_ee.transform(proj=elevation_crs, maxError=1)
-
-      # Get NAIP data (RGB and near infrared? -> may come in handy for image classification)
-      #terrainData = ee.ImageCollection('USDA/NAIP/DOQQ').filter(ee.Filter.date('2017-01-01', '2018-12-31'))
-      #print(terrainData.getInfo())
-      #trueColor = terrainData.select(['R', 'G', 'B'])
-
-      # Extract terrain data for area of interest
-      route_elevation = elevation_data.filterBounds(route_bbox_ee) # For image collection 
-      # NOTE: image collection seems to be easier to work with and map with folium compared to image...
-      #route_elevation = elevation_data.clip(route_bbox_ee)
-      #route_elevation = elevation_data
-      #print(type(route_elevation))
-      #elevation_values = route_elevation.sample(region=route_line_ee, scale = 10) #TODO: Fix this to extract values from line
-      # Add sampling at set regions?
-      #elevation_values = elevation_data.getRegion(geometry=route_line, scale=10) #Outputs (id, lon, lat, time) (for image collection)
-      #print(elevation_values.getInfo())
-
-      # Add layer control (to loggle layers on/off)
-      #m.add_child(folium.LayerControl())
-
-      # Create test web map of route data
-      figure = folium.Figure()
-      m = folium.Map(
-            location=centroid, 
-            zoom_start=12,
-            tiles="Stamen Terrain"
+        # Check if activity object already exists
+        user_filter = Activity.objects.filter(user_id = user.id)
+        route_filter = user_filter.filter(activity_id = route.id)
+        if(not route_filter.exists()):
+          # Create new route object for each route
+          current_route = Activity.objects.create_activity(
+            user=user,
+            activity=str(route.id),
+            start_date=timezone.now(), #TODO: See if there is a way to get actual date of run from strava -> seems to be missing from stravalib route object
+            created_date=timezone.now(),
+            line=LineString(long_lat), # Convert lat_long data to GeoDjango LineString format
           )
+          route_list.append(current_route)
+          current_route.save() # Save the object in the database
+
+        else:
+          print("Route already exists")
+
+      # Generate points along routes at specified distance
+      #interpolate_points(ELEVATION_EXTRACTION_RESOLUTION)
+
+      # Get a recent route for testing
+      if(len(route_list) > 0):
+        recent_route = route_list[0]
+
+        # Convert (long, lat) data back to (lat, long) for folium
+        route_yx = list(map(lambda coords: coords[::-1], recent_route.line))
         
-      m.add_to(figure)
+        # Plot route on map
+        centroid = [
+            np.mean([coord[0] for coord in route_yx]), 
+            np.mean([coord[1] for coord in route_yx])
+        ]
 
-       # Style for elevation data
-      elevation_style = {
-        "min": 0,
-        "max": 3000,
-        "palette": [ #list of colors
-          "#000000", "#141414", "#292929", "#3D3D3D", "#525252", 
-          "#666666", "#7B7B7B", "#8F8F8F", "#A4A4A4", "#B8B8B8", "#E8E8E8", "#FFFFFF"
-          #"845EC2", "#D65DB1", "#FF6F91", "#FF9671", "#FFC75F", "#F9F871"
-          #'#fff7ec','#fee8c8','#fdd49e','#fdbb84','#fc8d59','#ef6548','#d7301f','#b30000','#7f0000'
-        ],
-        "opacity": 1 #transparency
-      }
+        context = {
+          "current_athlete": current_athlete,
+          "athlete_name": athlete_name,
+          "routes": routes,
+          #"map_test": figure,
+        }
 
-      # Style for NAIP DATA
-      #trueColorVis = {
-      #    "min": 0.0,
-      #    "max": 255.0,
-      #}
-
-      # Add map to folium map
-      map_id_dict = route_elevation.getMapId(elevation_style)
-      #map_id_dict = elevation_values.getMapId(elevation_style)
-      #print(map_id_dict["tile_fetcher"].url_format)
-
-      # Create Folium raster tile layer from elevation data and add it to the map we created above
-      folium.raster_layers.TileLayer(
-          #Get URL to the elevation data on Google Earth Engine
-          tiles=map_id_dict["tile_fetcher"].url_format, 
-          #tiles="Stamen Terrain",
-          attr="Google Earth Engine",
-          name="3DEP",
-          overlay=True,
-          control=True,
-      ).add_to(m)
-
-      # Add bounding box of route to map
-      folium.GeoJson(route_bbox).add_to(m)
-
-      # Create polyline from route data and add it to the folium map
-      folium.PolyLine(route_yx, color='red', popup=f"Route ID: {recent_route.route_id}", control=True).add_to(m)
-      
-      # add toggle on/off for layer visibility
-      folium.LayerControl().add_to(m)
-
-      #display(m)
-      figure.render()
-
-      context = {
-        "current_athlete": current_athlete,
-        "athlete_name": athlete_name,
-        "routes": routes,
-        "map_test": figure,
-      }
+      else:
+        # Get latest route
+        route = [Activity.objects.filter(user_id = user.id).order_by("-date")[0]]
+        context = {
+          "current_athlete": current_athlete,
+          "athlete_name": athlete_name,
+          "routes": route,
+        }
     
     except UserSocialAuth.DoesNotExist:
         #strava_login = None
@@ -384,8 +407,6 @@ def getStravaData(request):
     }
 
   return render(request, template, context)
-
-    
 
   
 

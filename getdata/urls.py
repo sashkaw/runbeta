@@ -5,7 +5,7 @@ from . import views
 app_name = "getdata"
 
 urlpatterns = [
-  path("", views.getStravaData, name="getstravadata"),
+  path("strava/", views.render_strava_data, name="getdata-strava"),
   #path("details/", views.details, name="details"),
-  path("gee/", views.getEarthData, name = "getearthdata"),
+  path("earth/", views.render_earth_data, name = "getdata-earth"),
 ]
