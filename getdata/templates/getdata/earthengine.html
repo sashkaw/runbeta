@@ -10,10 +10,21 @@
   <!--link rel="stylesheet" href="{% static 'polls/style.css' %}"-->
 
   <body>
+    {% if data_name %}
+      <h2>Data name: {{ data_name }}</h2>
+    {% endif %}
+
+    {% if aoi %}
+      <h2>Area of interest: {{ aoi }}</h2>
+    {% endif %}
+
     <div><h1>Map of Google Earth Engine Data: </h1></div>
 
     {% if map %}
-      {{ map.html.render|safe }}
+      <div class="map-container">
+        <!--{{ map.html.render|safe }}-->
+        {{ map|safe }}
+      </div>
     {% endif %}
 
     <script>
