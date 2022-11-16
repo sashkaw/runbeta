@@ -10,7 +10,6 @@ from django.contrib.postgres.fields import ArrayField
 import time
 import datetime
 from pandas import to_numeric
-import polyline
 
 # Customize model initiation with use of manager -> preferred for Django instead of overriding '__init__'
 class ActivityManager(models.Manager):
@@ -20,7 +19,7 @@ class ActivityManager(models.Manager):
       activity_id=activity,
       start_date=start_date,
       created_date=created_date,
-      line=line
+      line=line,
     )
     
     # Return the activity object 
@@ -41,9 +40,6 @@ class Activity(models.Model):
 
   # Name of activity
   activity_id = models.CharField(max_length=200)
-  
-  # Name of route (shouldn't need this?)
-  #route_id = models.CharField(max_length=200)
 
   # Activity date
   start_date = models.DateTimeField(null=True, help_text="date started")
@@ -53,7 +49,8 @@ class Activity(models.Model):
 
   # Activity stream data
   time = ArrayField(base_field=models.TimeField(null=True, blank=True, help_text="time elapsed"), null=True)
-  latlng = ArrayField(base_field=models.PointField(null=True, blank=True, help_text="latlng position"), null=True)
+  # Note: Had to deleted all old migrations except for the first '0001 init', the root level data/ folder and pycache folders to get this latlng migration to work
+  latlng = models.MultiPointField(null=True, blank=True, help_text="latlng position") 
   distance = ArrayField(base_field=models.FloatField(null=True, blank=True, help_text="distance from start"), null=True)
   altitude = ArrayField(base_field=models.FloatField(null=True, blank=True, help_text="time elapsed"), null=True)
   velocity_smooth = ArrayField(base_field=models.FloatField(null=True, blank=True, help_text="velocity smooth"), null=True)
@@ -64,14 +61,14 @@ class Activity(models.Model):
   moving = ArrayField(base_field=models.FloatField(null=True, blank=True, help_text="moving"), null=True)
   grade_smooth = ArrayField(base_field=models.FloatField(null=True, blank=True, help_text="grade smooth"), null=True)
 
-  # Elevation sampling points
-  elevation_sampling_points = ArrayField(base_field=models.PointField(null=True, blank=True, help_text="elevation sampling points"), null=True)
+  # Elevation sampling points (shouldn't need this since we have latlng data)
+  #elevation_sampling_points = ArrayField(base_field=models.PointField(null=True, blank=True, help_text="elevation sampling points"), null=True)
 
   #Elevation data
   elevation = ArrayField(base_field=models.FloatField(null=True, blank=True, help_text="elevation values"), null=True)
   
   # Spatial geometry of route
-  line = models.LineStringField(null=True, blank=True, help_text="route")
+  line = models.LineStringField(null=True, blank=True, help_text="activity path")
   
   # Use manager to initialize Activity object with data
   objects = ActivityManager()
