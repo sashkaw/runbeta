@@ -324,15 +324,9 @@ def render_strava_data(request):
         # Check if activity object already exists
         check_user = Activity.objects.filter(user_id = user.id)
         check_activity = check_user.filter(activity_id = activity.id)
+        # If the activity does not already exists, get activity stream data and earth engine data for the activity
+        # and save in database
         if(not check_activity.exists()):
-          
-          # Get activity_stream data for that activity
-          #activity_stream = client.get_activity_streams(activity_id = activity.id, types = ACTIVITY_STREAM_TYPES, resolution ='medium') 
-          #print(activity_stream)
-          #print(type(activity.id))
-          #print("\n")
-          #print(activity)
-          #print("\n")
           
           # Create new activity object for each activity
           current_activity = Activity.objects.create_activity(
@@ -342,6 +336,32 @@ def render_strava_data(request):
             created_date=timezone.now(),
             line=LineString(long_lat), # Convert lat_long data to GeoDjango LineString format
           )
+
+          # Get activity_stream data for the recent activity (probably will move this up to the main loop above, just separating for testing currently)
+          activity_stream = client.get_activity_streams(activity_id = activity.id, types = ACTIVITY_STREAM_TYPES, resolution ='medium') 
+          # Get latlng data from the activity stream
+          stream_latlng = activity_stream.get("latlng").data
+          # Get every 60th element (because data is sampled at roughly one second, this should get a data point for every minute)
+          stream_sample = stream_latlng[::60]
+          # Reverse coordinates for earth engine (earth engine wants data in longlat format)
+          # and create geometry object for earth engine from coordinates
+          sample_points = MultiPoint(list(map(lambda lnglat: Point(lnglat[::-1]), stream_sample)))
+          # Convert to geojson format (the .geojson member is a string, so we use json_loads to convert the object to a dictionary)
+          sample_coords = json.loads(sample_points.geojson)
+          
+          # Save activity stream data to database
+          current_activity.latlng = sample_points # TODO: Decide if we want to get full data or just sampled points?
+          #current_activity.save() # TODO: See if this is necessary to avoid data loss?
+
+          # Get google earth data using the sampled points geojson
+          earth_dict = get_earth_data(data_name=ELEVATION_DATA_NAME, sample_points=sample_coords)
+          data_list = earth_dict["data_list"]
+
+          # Save elevation data in the database
+          current_activity.elevation = data_list
+          #current_activity.save()
+
+          # Add the current activities to a list (for if we want to access the activities without making more db calls)
           activity_list.append(current_activity)
           current_activity.save() # Save the object in the database
 
@@ -355,31 +375,6 @@ def render_strava_data(request):
       else:
         # Get latest route
         recent_activity = Activity.objects.filter(user_id = user.id).order_by("-start_date")[0]
-
-      # Get activity_stream data for the recent activity (probably will move this up to the main loop above, just separating for testing currently)
-      activity_stream = client.get_activity_streams(activity_id = activity.id, types = ACTIVITY_STREAM_TYPES, resolution ='medium') 
-      stream_latlng = activity_stream.get("latlng").data
-      # Get every 60th element (because data is sampled at roughly one second, this should get a data point for every minute)
-      stream_sample = stream_latlng[::60]
-      # Reverse coordinates for earth engine (earth engine wants data in longlat format)
-      # and create geometry object for earth engine from coordinates
-      sample_points = MultiPoint(list(map(lambda lnglat: Point(lnglat[::-1]), stream_sample)))
-      # Convert to geojson format (the .geojson member is a string, so we use json_loads to convert the object to a dictionary)
-      sample_coords = json.loads(sample_points.geojson)
-      
-      # Save activity stream data to database
-      recent_activity.latlng = sample_points # TODO: Decide if we want to get full data or just sampled points
-      recent_activity.save()
-      #print(type(sample_points))
-
-      # Get google earth data using the sampled points geojson
-      earth_dict = get_earth_data(data_name=ELEVATION_DATA_NAME, sample_points=sample_coords)
-      data_list = earth_dict["data_list"]
-      #print(data_list)
-
-      # Save elevation data in the database
-      recent_activity.elevation = data_list
-      recent_activity.save()
 
       # Convert (long, lat) data back to (lat, long) for folium
       activity_yx = list(map(lambda coords: coords[::-1], recent_activity.line))
