@@ -23,12 +23,12 @@
       {% endif %}
 
     </div>
-    <div class="showroutes">
+    <div class="activities">
       {% if activities %}
       <strong>Activities: </strong>
       <ol>
         {% for activity in activities %}
-          <li>{{ activity }}</li>
+          <li>Activity ID: {{ activity.activity_id }}, Start Date: {{ activity.start_date }}</li>
         {% endfor %}
       </ol>
       {% endif %}
