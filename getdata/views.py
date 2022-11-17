@@ -1,27 +1,23 @@
 # Django imports
-import json
-import os
-import time
-from curses.ascii import HT
 from multiprocessing import context
 from re import T
+from curses.ascii import HT
 from tokenize import String
-
-import ee
-import folium
-import numpy as np
-import pandas as pd
-import polyline
-from django.contrib import messages
-from django.contrib.auth import authenticate, login, update_session_auth_hash
+from django.shortcuts import get_object_or_404, render, redirect
+from django.http import HttpResponse, HttpResponseRedirect
+from django.views.generic import TemplateView
+from django.urls import reverse
+from django.views import generic
+from django.utils import timezone
+from django.urls import reverse
+from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import AdminPasswordChangeForm, PasswordChangeForm, UserCreationForm
-from django.contrib.auth import update_session_auth_hash, login, authenticate
+from django.contrib.auth import authenticate, login, update_session_auth_hash
 from django.contrib import messages
 from django.contrib.gis.geos import LineString, Point, MultiPoint
 from django.core.serializers import serialize
 from django.db import connection
-from datetime import datetime
 
 # Custom models
 from .models import Activity
@@ -32,15 +28,16 @@ from social_django.utils import load_strategy
 import os
 import time
 from dotenv import load_dotenv
+import numpy as np
+import pandas as pd
+import folium
 from folium import Polygon, plugins
 from folium.plugins import MarkerCluster
-# Package imports
-from social_django.models import UserSocialAuth
-from social_django.utils import load_strategy
+import polyline
 from stravalib.client import Client
-
-# Custom models
-from .models import Activity
+import ee
+import json
+from datetime import datetime
 
 # Constants
 ELEVATION_EXTRACTION_RESOLUTION = 10
@@ -373,7 +370,6 @@ def get_strava_activities(user, client, date_start, date_end, limit=None):
     # earth engine data for the activity
     # and save in the database
     if(not check_activity.exists()):
-      
       # Create new activity object for each activity
       current_activity = Activity.objects.create_activity(
         user=user,
@@ -505,30 +501,3 @@ def render_strava_data(request):
     }
 
   return render(request, template, context)
-
-@login_required
-def prep_strava(request):
-  template = "getdata/index.html"
-  user = request.user
-  if user.is_authenticated:
-    strava_access_token = get_token(user, "strava")
-    client = Client(access_token = strava_access_token)
-    #current_athlete = client.get_athlete()
-    #athlete_name = current_athlete.firstname + " " + current_athlete.lastname
-    return client
-  else:
-    context = {
-      "current_athlete": current_athlete,
-      "athlete_name": athlete_name,
-    }
-  return render(request, template, context)
-
-
-#Lots of repeat in this. Can we make this more efficient with better programming OR class based views?
-@login_required
-def get_stream(request, activity, streamtype):
-  #call prep_strava, which will throw an exception if the user isn't authenticated
-  client = prep_strava(request)
-  #get requested stream
-  desired_stream = client.get_activity_streams(activity_id = activity, types = streamtype, resolution ='medium' )
-  return desired_stream

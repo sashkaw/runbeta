@@ -25,18 +25,12 @@ class ActivityManager(models.Manager):
     # Return the activity object 
     return new_activity
 
-# Stores all activities for a given user (I hope?)
-class UserActivities(models.Model):
-  user_id = models.ForeignKey(User, on_delete=models.CASCADE)
-
 # Class Activity
 class Activity(models.Model):
 
-  # User name
-  user_id = models.ForeignKey(User, on_delete=models.CASCADE)
-
-  # foreignkey key relationship for useractivities
-  useractivities = models.ForeignKey(UserActivities, on_delete=models.CASCADE)
+  # User ID
+  # Note: Set db_column to "user_id", otherwise col name is "user_id_id"
+  user_id = models.ForeignKey(User, on_delete=models.CASCADE, db_column="user_id")
 
   # Name of activity
   activity_id = models.CharField(max_length=200)
@@ -49,7 +43,7 @@ class Activity(models.Model):
 
   # Activity stream data
   time = ArrayField(base_field=models.TimeField(null=True, blank=True, help_text="time elapsed"), null=True)
-  # Note: Had to deleted all old migrations except for the first '0001 init', the root level data/ folder and pycache folders to get this latlng migration to work
+  # Note: Had to delete all old migrations except for the first '0001 init', the root level data/ folder and pycache folders to get this latlng migration to work
   latlng = models.MultiPointField(null=True, blank=True, help_text="latlng position") 
   distance = ArrayField(base_field=models.FloatField(null=True, blank=True, help_text="distance from start"), null=True)
   altitude = ArrayField(base_field=models.FloatField(null=True, blank=True, help_text="time elapsed"), null=True)
