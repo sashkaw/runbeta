@@ -61,8 +61,16 @@ ACTIVITY_STREAM_TYPES = [
 
 # Create your views here.
 
-# Check if access token is still valid, and if not refresh the token and return the new access token
 def get_token(user, provider):
+  """
+  Check if third party OAuth access token is still valid.
+  If the token is invalid, refresh the token and return the new access token.
+  Else return the valid current access token.
+
+  Keyword arguments:
+  user -- request.user object
+  provider -- string name of provider (eg "strava")
+  """
   social = user.social_auth.get(provider = provider)
   # the  ' - 10' is so that the token doesn't expire as we make the request 
   # if we check the token expiry right before it expires
@@ -71,16 +79,21 @@ def get_token(user, provider):
       social.refresh_token(strategy)
   return social.extra_data['access_token']
 
-
-# Function to create Folium map object
-# map_data_dict should be a dictionary of the form
-# {
-#   <data_type>: <data>,
-#   <data_type>: <data>,
-# }
-# data_type should be one of "polygon" for vector polygon data, "line" for vector line data, "point" for vector point data, or "raster" for raster data
-# data should be a spatial data object (eg LineString, Point)
 def create_map(map_data_dict, centroid):
+  """
+  Create a Folium map object.
+  
+  Keyword arguments:
+  map_data_dict -- dictionary of the form:
+  {
+    <data_type>: <data>, 
+    <data_type>: <data>,
+  }
+  <data_type> -- One of "polygon" for vector polygon data, "line" for vector line data, "point" for vector point data, or "raster" for raster data
+  <data> -- GEOS spatial data object (eg LineString, Point)
+
+  centroid -- list of the form [latitude, longitude] for centering the Folium map (eg [32.31, -110.71])
+  """
   
   # Create web map using Folium
   #figure = folium.Figure()
@@ -165,27 +178,16 @@ def details(request):
   }
   return render(request, template, context)"""
 
-# View to test that app can connect successfully to Google Earth Engine
-# Note that the area of interest should be in geojson format
-
-test_sampling_points = {
-      "type": "MultiPoint",
-      "coordinates": 
-      [
-          [-110.71, 32.31],
-          [-110.68, 32.32],
-          [-110.66, 32.30]
-      ]
-    }
-
-# Function to get earth raster data and sample raster values at points of interest
 def get_earth_data(data_name, sample_points, get_url=False):
+  """
+  Get earth engine image collection data and sample raster values at points of interest.
+  Return url to tile layer of extracted data if desired.
 
-  # Get an object to work with
-  #recent_activity = Activity.objects.get(pk=1) # For testing
-
-  # Convert data to geojson
-  #sample_points_json = json.loads(sample_points.geojson)
+  Keyword arguments:
+  data_name -- string name of earth engine data to retrieve
+  sample_points -- geojson containing points at which to extract raster values
+  get_url -- optional flag for whether to also return a tile layer url of the sampled data (default: False)
+  """
 
   # Create earth engine geometry from sample_points
   sample_points_ee = ee.Geometry(sample_points)
@@ -233,6 +235,16 @@ def get_earth_data(data_name, sample_points, get_url=False):
   return output_data 
 
 # Function to render a web map of earth engine data (mostly for debugging / testing currently)
+# TODO: If decide to keep this function, update function to get parameters get_earth_data() from redirect to this view
+test_sampling_points = {
+      "type": "MultiPoint",
+      "coordinates": 
+      [
+          [-110.71, 32.31],
+          [-110.68, 32.32],
+          [-110.66, 32.30]
+      ]
+    }
 def render_earth_data(request):
   # Define template to render
   template = "getdata/earthengine.html"
@@ -266,12 +278,152 @@ def render_earth_data(request):
 
   return render(request, template, context)
 
-# Specify the url we redirect the user to after they are logged in
-# login_required will redirect the user to the login page (specifed at LOGIN_URL in settings)
-# Note that the code in getStravaData does not execute until after the user is logged in and visits the page again
-# The default redirect URL after the user is logged in is specified in settings.SOCIAL_AUTH_LOGIN_REDIRECT_URL
+def prep_strava(current_user):
+  """
+  Get strava client object for the current user.
+
+  Keyword arguments:
+  current_user -- request.user (User model object)
+  """
+  if current_user.is_authenticated:
+    try:
+      strava_access_token = get_token(current_user, "strava")
+      client = Client(access_token = strava_access_token)
+      return client
+    except UserSocialAuth.DoesNotExist:
+        return "no user"
+  else:
+    return "not authenticated"
+
+def extract_points(stream_data):
+  """
+  Extract lat long data from activity stream, sample the lat long data,
+  convert to GEOS geometry, and extract geojson format.
+
+  Keyword arguments:
+  stream_data -- stravalib activity_stream object
+  """
+  # Get latlng data from the activity stream
+  # Check if latlng key exists - some activities do not have latlng data
+  if("latlng" in stream_data):
+    #print("latlng exists")
+    stream_latlng = stream_data.get("latlng").data
+    # Get every 60th element (because data is sampled at roughly one second, this should get a data point for every minute)
+    stream_sample = stream_latlng[::60]
+    # Reverse coordinates for earth engine (earth engine wants data in longlat format)
+    # and create geometry object for earth engine from coordinates
+    sample_points = MultiPoint(list(map(lambda lnglat: Point(lnglat[::-1]), stream_sample)))
+    # Convert to geojson format (the .geojson member is a string, so we use json_loads to convert the object to a dictionary)
+    # so that we can pass the data to earth engine
+    sample_json = json.loads(sample_points.geojson)
+
+  else:
+    sample_points = ""
+    sample_json = ""
+
+  point_dict = {
+    "points": sample_points,
+    "json": sample_json,
+  }
+
+  return point_dict
+
+def get_strava_activities(user, client, date_start, date_end, limit=None):
+  """
+  Get strava activities for a given user ID and strava client object. 
+  For each activity, get the activity stream data for that activity,
+  extract longlat data from the activity stream, and extract 
+  earth engine data for those points. Save all newly created objects in the database.
+  Return a list of all the newly created objects. List will contain a string error message
+  for a given activity if the activity already exists in the database.
+
+  Keyword arguments:
+  user -- request.user (User model object)
+  client -- stravalib Client object
+  date_start -- datetime object (e.g. of the form YYYY-MM-DD)
+  date_end -- datetime object (e.g. of the form YYYY-MM-DD)
+  limit -- integer number of maximum records to retrieve
+  """
+
+  # Handle optional limit argument and 
+  # get activities for provided date range
+  if(limit):
+    activities = client.get_activities(before=date_end, after=date_start, limit=limit)
+  else:
+    activities = client.get_activities(before=date_end, after=date_start)
+
+  # Create blank list of activity objects
+  activity_list = []
+
+  #Extract activities from list and create new activity objects to save in database
+  for activity in activities:
+    # Have to decode the google polyline format using the 'polyline' package
+    # And then create a new LineString object using the resulting list of coordinates
+    lat_long = polyline.decode(activity.map.summary_polyline)
+    # Then have to reverse the (lat, long) coordinate format to get (long, lat) format for LineString 
+    # Note: Folium and GeoDjango appear to have opposite coordinate format requirements
+    # Folium wants data in (lat, long) format,
+    # and GeoDjango spatial objects are created from (long, lat) format
+    long_lat = list(map(lambda coords: coords[::-1], lat_long))
+    
+    # Check if activity object already exists
+    check_user = Activity.objects.filter(user_id = user.id)
+    check_activity = check_user.filter(activity_id = activity.id)
+    # If the activity does not already exist, get activity stream data and 
+    # earth engine data for the activity
+    # and save in the database
+    if(not check_activity.exists()):
+      
+      # Create new activity object for each activity
+      current_activity = Activity.objects.create_activity(
+        user=user,
+        activity=str(activity.id),
+        start_date=activity.start_date, 
+        created_date=timezone.now(),
+        line=LineString(long_lat), # Convert lat_long data to GeoDjango LineString format
+      )
+
+      # Get activity_stream data for the recent activity (probably will move this up to the main loop above, just separating for testing currently)
+      activity_stream = client.get_activity_streams(activity_id = activity.id, types = ACTIVITY_STREAM_TYPES, resolution ='medium')
+      
+      # Get latlng data and create point objects and format coordinates for use with earth engine
+      extracted_points = extract_points(activity_stream)
+      extracted_multipoint = extracted_points.get("points")
+      extracted_json = extracted_points.get("json")
+      
+      # Save activity stream data to database
+      # TODO: Decide if we want to get full data or just sampled points?
+      if(extracted_multipoint and extracted_json):
+        # Store latlng data in database
+        current_activity.latlng = extracted_points.get("points") 
+
+        # Get google earth data using the sampled points geojson
+        earth_dict = get_earth_data(data_name=ELEVATION_DATA_NAME, sample_points=extracted_points.get("json"))
+        data_list = earth_dict["data_list"]
+        # Save elevation data in the database
+        current_activity.elevation = data_list
+
+      # Add the current activities to a list (for if we want to access the activities without making more database calls)
+      activity_list.append(current_activity)
+      current_activity.save() # Save the object in the database
+    
+  return activity_list
+
+
 @login_required
 def render_strava_data(request):
+  """
+  Get strava activity data, corresponding activity streams and sample earth engine raster data for the activity stream
+  coordinates. Render Folium map of latest activity.
+  
+  Notes: 
+  - login_required will redirect the user to the login page (specifed at LOGIN_URL in settings)
+  - The default redirect URL after the user is logged in is specified in settings.SOCIAL_AUTH_LOGIN_REDIRECT_URL
+
+  Keyword arguments:
+  request -- Django HttpRequest object
+  """
+
   # Define template to render
   template = "getdata/index.html"
 
@@ -286,128 +438,66 @@ def render_strava_data(request):
     "athlete_name": athlete_name,
   }
 
-  # Check if the user is authenticated (this may be unnecessary given the login_required decorator)
-  if user.is_authenticated:
+  # Get strava Client object
+  client = prep_strava(user)
 
-    try:
-      strava_access_token = get_token(user, "strava")
+  # If client object is valid, get strava and earth engine data
+  if(client != "no user" and client != "not authenticated"):
+    # Get test data about athlete
+    current_athlete = client.get_athlete()
+    athlete_name = current_athlete.firstname + " " + current_athlete.lastname
     
-      # Create new client instance with the access token we generated
-      client = Client(access_token = strava_access_token)
+    # Get activities and corresponding activity streams and sampled earth engine data for activity stream coordinates
+    # TODO: Figure out best method for only getting new data as needed (date filter since last activity date_start or date_created?)
+    # TODO: Add form functionality to select dates from a dropdown menu and 
+    # redirect the output to a dashboard of the queried data
+    # Get activities, 
+    activity_list = get_strava_activities(
+      user=user, 
+      client=client, 
+      date_start = datetime(2022, 1, 1), 
+      date_end = timezone.now(),
+      limit=5 # Function will take much longer without a limit -> TODO: See if this could be done in background? Or just add progress bar?
+      )
 
-      # Get test data about athlete
-      current_athlete = client.get_athlete()
-      athlete_name = current_athlete.firstname + " " + current_athlete.lastname
-      
-      # Get all strava activities
-      # NOTE: Need to specify SOCIAL_AUTH_STRAVA_SCOPE = ['activity:read_all'] in settings.py for this to work
-      # TODO: Figure out best method for only getting new data as needed (data filter since last activity 'date_created'?)
-      activities = client.get_activities(
-        before=datetime(2022, 11, 15),
-        after=datetime(2022, 10, 15),
-        limit=2)
+    # Get a recent activity for testing
+    if(len(activity_list) > 0):
+      recent_activity = activity_list[0]
 
-      # List of activity objects
-      activity_list = []
+    # If there are no activities in the activity_list 
+    # (eg the activities that were queried already exist in the database)
+    else:
+      # Get latest activity
+      recent_activity = Activity.objects.filter(user_id = user.id).order_by("-start_date")[0]
 
-      #Extract activities from list and create new activity objects to save in DB
-      for activity in activities:
-        # Have to decode the google polyline format using the 'polyline' package
-        # And then create a new LineString object using the resulting list of coordinates
-        lat_long = polyline.decode(activity.map.summary_polyline)
-        # Then have to reverse the (lat, long) coordinate format to get (long, lat) format for LineString 
-        # Note: Folium and GeoDjango appear to have opposite coordinate format requirements
-        # Folium wants data in (lat, long) format,
-        # and GeoDjango spatial objects are created from (long, lat) format
-        long_lat = list(map(lambda coords: coords[::-1], lat_long))
-        
-        # Check if activity object already exists
-        check_user = Activity.objects.filter(user_id = user.id)
-        check_activity = check_user.filter(activity_id = activity.id)
-        # If the activity does not already exists, get activity stream data and earth engine data for the activity
-        # and save in database
-        if(not check_activity.exists()):
-          
-          # Create new activity object for each activity
-          current_activity = Activity.objects.create_activity(
-            user=user,
-            activity=str(activity.id),
-            start_date=activity.start_date, 
-            created_date=timezone.now(),
-            line=LineString(long_lat), # Convert lat_long data to GeoDjango LineString format
-          )
-
-          # Get activity_stream data for the recent activity (probably will move this up to the main loop above, just separating for testing currently)
-          activity_stream = client.get_activity_streams(activity_id = activity.id, types = ACTIVITY_STREAM_TYPES, resolution ='medium') 
-          # Get latlng data from the activity stream
-          stream_latlng = activity_stream.get("latlng").data
-          # Get every 60th element (because data is sampled at roughly one second, this should get a data point for every minute)
-          stream_sample = stream_latlng[::60]
-          # Reverse coordinates for earth engine (earth engine wants data in longlat format)
-          # and create geometry object for earth engine from coordinates
-          sample_points = MultiPoint(list(map(lambda lnglat: Point(lnglat[::-1]), stream_sample)))
-          # Convert to geojson format (the .geojson member is a string, so we use json_loads to convert the object to a dictionary)
-          sample_coords = json.loads(sample_points.geojson)
-          
-          # Save activity stream data to database
-          current_activity.latlng = sample_points # TODO: Decide if we want to get full data or just sampled points?
-          #current_activity.save() # TODO: See if this is necessary to avoid data loss?
-
-          # Get google earth data using the sampled points geojson
-          earth_dict = get_earth_data(data_name=ELEVATION_DATA_NAME, sample_points=sample_coords)
-          data_list = earth_dict["data_list"]
-
-          # Save elevation data in the database
-          current_activity.elevation = data_list
-          #current_activity.save()
-
-          # Add the current activities to a list (for if we want to access the activities without making more db calls)
-          activity_list.append(current_activity)
-          current_activity.save() # Save the object in the database
-
-        else:
-          print("Activity already exists")
-
-      # Get a recent activity for testing
-      if(len(activity_list) > 0):
-        recent_activity = activity_list[0]
-
-      else:
-        # Get latest route
-        recent_activity = Activity.objects.filter(user_id = user.id).order_by("-start_date")[0]
-
-      # Convert (long, lat) data back to (lat, long) for folium
-      activity_yx = list(map(lambda coords: coords[::-1], recent_activity.line))
-      
-      # Create centroid for map
-      centroid = [
-          np.mean([coord[0] for coord in activity_yx]), 
-          np.mean([coord[1] for coord in activity_yx])
-      ]
+    # Convert (long, lat) data back to (lat, long) for folium
+    activity_yx = list(map(lambda coords: coords[::-1], recent_activity.line))
     
-      # Create dictionary of spatial data to add to map
-      map_data = {
-        "point": activity_yx,
-        "line": list(activity_yx),
-      }
+    # Create centroid for map
+    centroid = [
+        np.mean([coord[0] for coord in activity_yx]), 
+        np.mean([coord[1] for coord in activity_yx])
+    ]
 
-      # Create Folium map from the strava data
-      folium_map = create_map(
-        map_data_dict=map_data,
-        centroid=centroid)
+    # Create dictionary of spatial data to add to map
+    map_data = {
+      "point": activity_yx,
+      "line": list(activity_yx),
+    }
 
-      context = {
-        "current_athlete": current_athlete,
-        "athlete_name": athlete_name,
-        "activities": activities,
-        "map": folium_map,
-      }
+    # Create Folium map from the strava data
+    folium_map = create_map(
+      map_data_dict=map_data,
+      centroid=centroid)
 
-    except UserSocialAuth.DoesNotExist:
-        #strava_login = None
-        current_athelete = "no strava athlete account"
-  
-  # If user has not authenticated with strava
+    context = {
+      "current_athlete": current_athlete,
+      "athlete_name": athlete_name,
+      "activities": activity_list,
+      "map": folium_map,
+    }
+
+  # Else if problem with strava client authentication
   else:
     context = {
       "current_athlete": current_athlete,
