@@ -1,7 +1,7 @@
 #OSX
 .DS_Store
 
-#JSON files
+#JSON files - DO NOT CHANGE
 *.json
 
 #Misc
