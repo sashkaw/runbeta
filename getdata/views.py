@@ -408,9 +408,9 @@ def render_strava_data(request):
 
   return render(request, template, context)
 
-@login_required
-def prep_strava(request):
-  template = "getdata/index.html"
+@login_required #take out since this is called from login required already
+def prep_strava(request): #pass in request.user?
+  template = "getdata/index.html" #remove
   user = request.user
   if user.is_authenticated:
     strava_access_token = get_token(user, "strava")
@@ -423,7 +423,7 @@ def prep_strava(request):
       "current_athlete": current_athlete,
       "athlete_name": athlete_name,
     }
-  return render(request, template, context)
+  return render(request, template, context) #can return "not authenticated"
 
 
 #Lots of repeat in this. Can we make this more efficient with better programming OR class based views?
