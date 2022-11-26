@@ -23,26 +23,26 @@
       {% endif %}
 
     </div>
-    <div class="showroutes">
-      {% if routes %}
-      <strong>Routes: </strong>
+    <div class="activities">
+      {% if activities %}
+      <strong>Activities: </strong>
       <ol>
-        {% for route in routes %}
-          <li>{{ route }}</li>
+        {% for activity in activities %}
+          <li>Activity ID: {{ activity.activity_id }}, Start Date: {{ activity.start_date }}</li>
         {% endfor %}
       </ol>
       {% endif %}
     </div>
 
 
-    <div><h1>Map of strava route # <strong>{{ route_test.id }}</strong>:</h1></div>
+    <div><h1>Map of strava activity: </h1></div>
 
-    {% if map_test %}
-      {{ map_test.html.render|safe }}
+    {% if map %}
+      {{ map|safe }}
     {% endif %}
 
     <script>
-      {{ map_test.script.render|safe }}
+      {{ map.script.render|safe }}
     </script>
   </body>
 

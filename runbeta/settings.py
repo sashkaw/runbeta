@@ -169,3 +169,4 @@ LOGOUT_REDIRECT_URL = "/register/"
 # For django social auth
 SOCIAL_AUTH_LOGIN_URL = "/"
 SOCIAL_AUTH_LOGIN_REDIRECT_URL = "/register/settings/"
+SOCIAL_AUTH_STRAVA_SCOPE = ['activity:read_all'] # Need to set the scope to be able to access strava activities
