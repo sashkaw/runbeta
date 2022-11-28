@@ -1,15 +1,17 @@
 # Imports
+import os
 import datetime
 import requests
 from dotenv import load_dotenv
 from unittest import mock, skip
-from stravalib.client import Client
+import stravalib.client as stravacli
 
 from django.test import TestCase, override_settings
 from django.utils import timezone
 from django.urls import reverse
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import User
+import django.test.client as djangotestcli
 
 from social_django.models import UserSocialAuth
 from social_django.views import get_session_timeout
@@ -18,6 +20,11 @@ from .views import *
 from .models import Activity
 
 # Create your tests here.
+
+# Load login info for test user
+load_dotenv()
+TEST_USER_NAME = os.getenv("TEST_USER_NAME")
+TEST_USER_PASSWORD= os.getenv("TEST_USER_PASSWORD")
 
 # Helper function to create new users for testing
 def create_user():
@@ -34,6 +41,19 @@ class AuthStrava(TestCase):
   # Load test fixtures
   fixtures = ["fixtures/user.json", "fixtures/socialauth.json"]
 
+  def setUp(self):
+    self.client = djangotestcli.Client()
+    #self.user = User.objects.create_user('john', 'lennon@thebeatles.com', 'johnpassword')
+    self.response = self.client.login(username=TEST_USER_NAME, password=TEST_USER_PASSWORD)
+
+  def test_profile_form_success(self):
+    self.response = self.client.get(reverse('getdata:getdata-strava'))
+    #print(self.response.context["current_athlete"])
+    #print(self.response.context["activities"])
+    self.assertTrue(200, self.response.status_code)
+    self.assertTemplateUsed(self.response, 'getdata/index.html')
+
+  @skip("Writing tests...")
   def test_get_token(self):
     # Get user object for tests
     test_user = User.objects.get(pk=1)
@@ -43,18 +63,20 @@ class AuthStrava(TestCase):
     self.assertIsInstance(token, str) # Check that output is a string
     self.assertGreater(len(token), 0) # Check that output has length greater than zero
 
+  @skip("Writing tests...")
   # Check that prep_strava returns a valid client object for authenticated strava user
   def test_prep_strava(self):
     # Get user object for tests
-    test_user = User.objects.get(pk=1)
+    test_user = User.objects.get(pk=3)
     #test_provider = "strava"
     test_client = prep_strava(test_user)
     #print(test_client)
-    self.assertIsInstance(test_client, Client)
+    self.assertIsInstance(test_client, stravacli.Client)
     #token = test_client.access_token
     #self.assertIsInstance(token, str) # Check that output is a string
     #self.assertGreater(len(token), 0) # Check that output has length greater than zero
   
+  @skip("Writing tests...")
   # Check that "no user" is returned when user object is not authenticated with strava
   def test_prep_strava_no_user(self):
     test_user = create_user()
