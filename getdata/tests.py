@@ -100,8 +100,8 @@ class AuthStrava(TestCase):
 
   # Load test user fixtures
   fixtures = ["fixtures/user.json", "fixtures/socialauth.json"]
-  #@skip("Writing tests...")
   # Initialize test client and login the test user
+  #@skip("Writing tests...")
   def setUp(self):
     self.client = djangotestcli.Client()
     self.response = self.client.login(username=TEST_USER_NAME, password=TEST_USER_PASSWORD)
@@ -126,7 +126,7 @@ class AuthStrava(TestCase):
     test_user = User.objects.get(pk=3)
     test_client = prep_strava(test_user)
     self.assertIsInstance(test_client, stravacli.Client)
-    
+
   # Check that "no user" is returned when user object is not authenticated with strava
   #@skip("Writing tests...")
   def test_prep_strava_no_user(self):
@@ -155,8 +155,11 @@ class RenderStrava(TestCase):
     self.date_start = datetime(2022, 11, 1)
     self.date_end = datetime(2022, 11, 15)
 
-  #@skip("Writing tests...")
   # Check that user strava data is being fetched and rendered
+  # Note: several times calling get_strava_activities via this test resulted in 
+  # an error `stravalib.exc.Fault: 500 Server Error: Internal Server Error [error: None]`
+  # Potential TODO: Fix functions so that server errors are handled within the functions?
+  #@skip("Writing tests...")
   def test_render_strava(self):
     self.response = self.client.get(reverse('getdata:getdata-strava'))
     self.assertTrue(200, self.response.status_code)
@@ -166,7 +169,7 @@ class RenderStrava(TestCase):
     # Check that there is at least one activity
     self.assertGreater(len(self.response.context["activities"]), 0)
     # Check that rendered map contains a leaflet map
-    self.assertRegex(self.response.context["map"], "L.map") 
+    self.assertRegex(self.response.context["map"], "L.map")
   
   # Check that strava activities can be fetched for an authenticated user
   #@skip("Writing tests...")
@@ -220,11 +223,13 @@ class GetEarthDataTests(TestCase):
     }
   
   # Test that querying earth engine data and sampling the data at test points returns the correct data
+  #@skip("Writing tests...")
   def test_get_earth_data(self):
     test_earth_data = get_earth_data("USGS/3DEP/1m", self.sampling_points, get_url=False)
     self.assertEqual(test_earth_data, self.earth_data)
       
   # Test that returned url contains the right scheme, subdomain, second-level domain, and top-level domain
+  #@skip("Writing tests...")
   def test_get_earth_data_url(self):
     test_earth_data = get_earth_data("USGS/3DEP/1m", self.sampling_points, get_url=True)
     self.assertRegex(test_earth_data.get("data_url"), "https:\/\/earthengine\.googleapis\.com")
