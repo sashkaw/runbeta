@@ -48,7 +48,7 @@ class CreateMap(TestCase):
   """
   # Initialize test data
   # TODO: Fix views so that create_map takes in geojson objects instead of just coordinates?
-  @skip("Writing tests...")
+  #@skip("Writing tests...")
   def setUp(self):
     self.test_centroid = [32.31, -110.71]
     self.test_map_data = {
@@ -75,7 +75,7 @@ class CreateMap(TestCase):
       "raster": TEST_RASTER_URL,
     }
 
-  @skip("Writing tests...")
+  #@skip("Writing tests...")
   def test_create_map(self):
     test_map = create_map(map_data_dict=self.test_map_data, centroid=self.test_centroid)
     # Check that rendered map contains a leaflet map
@@ -100,7 +100,7 @@ class AuthStrava(TestCase):
 
   # Load test user fixtures
   fixtures = ["fixtures/user.json", "fixtures/socialauth.json"]
-  @skip("Writing tests...")
+  #@skip("Writing tests...")
   # Initialize test client and login the test user
   def setUp(self):
     self.client = djangotestcli.Client()
@@ -109,7 +109,7 @@ class AuthStrava(TestCase):
   # Check that strava auth token can be returned / refreshed
   # Function will return UserSocialAuth error if user is not authenticated with strava
   # TODO: Add error checking within the function?
-  @skip("Writing tests...")
+  #@skip("Writing tests...")
   def test_get_token(self):
     # Get user object for tests
     test_user = User.objects.get(pk=3)
@@ -120,7 +120,7 @@ class AuthStrava(TestCase):
     self.assertGreater(len(token), 0) # Check that output has length greater than zero
 
   # Check that prep_strava returns a valid client object for authenticated strava user
-  @skip("Writing tests...")
+  #@skip("Writing tests...")
   def test_prep_strava(self):
     # Get user object for tests
     test_user = User.objects.get(pk=3)
@@ -128,7 +128,7 @@ class AuthStrava(TestCase):
     self.assertIsInstance(test_client, stravacli.Client)
     
   # Check that "no user" is returned when user object is not authenticated with strava
-  @skip("Writing tests...")
+  #@skip("Writing tests...")
   def test_prep_strava_no_user(self):
     test_user = create_user()
     test_client = prep_strava(test_user)
@@ -143,7 +143,7 @@ class RenderStrava(TestCase):
   fixtures = ["fixtures/user.json", "fixtures/socialauth.json"]
 
   # Initialize test client and login the test user
-  @skip("Writing tests...")
+  #@skip("Writing tests...")
   def setUp(self):
     # Initalize django test client, strava client
     self.client = djangotestcli.Client()
@@ -155,7 +155,7 @@ class RenderStrava(TestCase):
     self.date_start = datetime(2022, 11, 1)
     self.date_end = datetime(2022, 11, 15)
 
-  @skip("Writing tests...")
+  #@skip("Writing tests...")
   # Check that user strava data is being fetched and rendered
   def test_render_strava(self):
     self.response = self.client.get(reverse('getdata:getdata-strava'))
@@ -169,7 +169,7 @@ class RenderStrava(TestCase):
     self.assertRegex(self.response.context["map"], "L.map") 
   
   # Check that strava activities can be fetched for an authenticated user
-  @skip("Writing tests...")
+  #@skip("Writing tests...")
   def test_get_activities(self):
     test_activities = get_strava_activities(self.test_user, self.strava_client, self.date_start, self.date_end, limit=2)
     # Check that there are the correct number of activities
@@ -178,7 +178,7 @@ class RenderStrava(TestCase):
     self.assertIsInstance(test_activities[0], Activity) 
 
   # Test that points can be sampled
-  @skip("Writing tests...")
+  #@skip("Writing tests...")
   def test_extract_points(self):
     test_activity = get_strava_activities(self.test_user, self.strava_client, self.date_start, self.date_end, limit=2)[0]
     test_stream = self.strava_client.get_activity_streams(activity_id = test_activity, types = ["latlng"], resolution ='medium')
