@@ -378,15 +378,16 @@ def get_strava_activities(user, client, date_start, date_end, limit=None):
         created_date=timezone.now(),
         line=LineString(long_lat), # Convert lat_long data to GeoDjango LineString format
       )
-
+      
       # Get activity_stream data for the recent activity (probably will move this up to the main loop above, just separating for testing currently)
       activity_stream = client.get_activity_streams(activity_id = activity.id, types = ACTIVITY_STREAM_TYPES, resolution ='medium')
-      
+      activity = get_streams(activity, activity_stream)
+
       # Get latlng data and create point objects and format coordinates for use with earth engine
       extracted_points = extract_points(activity_stream)
       extracted_multipoint = extracted_points.get("points")
       extracted_json = extracted_points.get("json")
-      
+
       # Save activity stream data to database
       # TODO: Decide if we want to get full data or just sampled points?
       if(extracted_multipoint and extracted_json):
@@ -397,14 +398,27 @@ def get_strava_activities(user, client, date_start, date_end, limit=None):
         earth_dict = get_earth_data(data_name=ELEVATION_DATA_NAME, sample_points=extracted_points.get("json"))
         data_list = earth_dict["data_list"]
         # Save elevation data in the database
-        current_activity.elevation = data_list
+        current_activity.elevation = data_list # altitude??
 
       # Add the current activities to a list (for if we want to access the activities without making more database calls)
       activity_list.append(current_activity)
       current_activity.save() # Save the object in the database
-    
   return activity_list
 
+def get_streams(activity, activity_stream):
+  activity.time = activity_stream.get("time")
+  activity.heartrate = activity_stream.get("heartrate")
+  activity.cadence = activity_stream.get("cadence")
+  #activity.latlng = activity_stream.get("latlng") Already being done
+  activity.distance = activity_stream.get("distance")
+  activity.altitude = activity_stream.get("altitude") #Already being done??
+  activity.velocity_smooth = activity_stream.get("velocity_smooth")
+  activity.watts = activity_stream.get("watts")
+  activity.grade_smooth = activity_stream.get("grade_smooth")
+  activity.temp = activity_stream.get("temp") #my watch doesn't get this info
+  activity.moving = activity_stream.get("moving")
+  activity.save()
+  return activity
 
 @login_required
 def render_strava_data(request):
