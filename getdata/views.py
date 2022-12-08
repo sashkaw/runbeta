@@ -306,10 +306,10 @@ def extract_points(stream_data):
     #print("latlng exists")
     stream_latlng = stream_data.get("latlng").data
     # Get every 60th element (because data is sampled at roughly one second, this should get a data point for every minute)
-    stream_sample = stream_latlng[::60]
+    # stream_sample = stream_latlng[::60]
     # Reverse coordinates for earth engine (earth engine wants data in longlat format)
     # and create geometry object for earth engine from coordinates
-    sample_points = MultiPoint(list(map(lambda lnglat: Point(lnglat[::-1]), stream_sample)))
+    sample_points = MultiPoint(list(map(lambda lnglat: Point(lnglat[::-1]), stream_latlng)))
     # Convert to geojson format (the .geojson member is a string, so we use json_loads to convert the object to a dictionary)
     # so that we can pass the data to earth engine
     sample_json = json.loads(sample_points.geojson)
@@ -381,7 +381,7 @@ def get_strava_activities(user, client, date_start, date_end, limit=None):
       
       # Get activity_stream data for the recent activity (probably will move this up to the main loop above, just separating for testing currently)
       activity_stream = client.get_activity_streams(activity_id = activity.id, types = ACTIVITY_STREAM_TYPES, resolution ='medium')
-      activity = get_streams(activity, activity_stream)
+      get_streams(current_activity, activity_stream)
 
       # Get latlng data and create point objects and format coordinates for use with earth engine
       extracted_points = extract_points(activity_stream)
@@ -395,10 +395,10 @@ def get_strava_activities(user, client, date_start, date_end, limit=None):
         current_activity.latlng = extracted_points.get("points") 
 
         # Get google earth data using the sampled points geojson
-        earth_dict = get_earth_data(data_name=ELEVATION_DATA_NAME, sample_points=extracted_points.get("json"))
-        data_list = earth_dict["data_list"]
+        #earth_dict = get_earth_data(data_name=ELEVATION_DATA_NAME, sample_points=extracted_points.get("json"))
+        # data_list = earth_dict["data_list"]
         # Save elevation data in the database
-        current_activity.elevation = data_list # altitude??
+        #current_activity.elevation = data_list # altitude??
 
       # Add the current activities to a list (for if we want to access the activities without making more database calls)
       activity_list.append(current_activity)
@@ -406,18 +406,18 @@ def get_strava_activities(user, client, date_start, date_end, limit=None):
   return activity_list
 
 def get_streams(activity, activity_stream):
-  activity.time = activity_stream.get("time")
-  activity.heartrate = activity_stream.get("heartrate")
-  activity.cadence = activity_stream.get("cadence")
+  #activity.time = activity_stream.get("time").data
+  activity.heartrate = activity_stream.get("heartrate").data
+  #activity.cadence = activity_stream.get("cadence").data
   #activity.latlng = activity_stream.get("latlng") Already being done
-  activity.distance = activity_stream.get("distance")
-  activity.altitude = activity_stream.get("altitude") #Already being done??
-  activity.velocity_smooth = activity_stream.get("velocity_smooth")
-  activity.watts = activity_stream.get("watts")
-  activity.grade_smooth = activity_stream.get("grade_smooth")
-  activity.temp = activity_stream.get("temp") #my watch doesn't get this info
-  activity.moving = activity_stream.get("moving")
-  activity.save()
+  activity.distance = activity_stream.get("distance").data
+  activity.altitude = activity_stream.get("altitude").data #Already being done??
+  activity.velocity_smooth = activity_stream.get("velocity_smooth").data
+  #activity.watts = activity_stream.get("watts").data
+  activity.grade_smooth = activity_stream.get("grade_smooth").data
+  #activity.temp = activity_stream.get("temp").data #my watch doesn't get this info
+  #activity.moving = activity_stream.get("moving").data
+  #activity.save()
   return activity
 
 @login_required

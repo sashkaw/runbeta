@@ -17,4 +17,5 @@ class ActivityAdmin(OSMGeoAdmin):
     "distance",
     "velocity_smooth",
     "heartrate",
-    "elevation")
+    "altitude",
+    "grade_smooth",)
