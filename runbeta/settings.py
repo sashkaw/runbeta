@@ -33,6 +33,11 @@ DB_PORT = os.environ["DB_PORT"]
 SOCIAL_AUTH_STRAVA_KEY = os.environ["SOCIAL_AUTH_STRAVA_KEY"]
 SOCIAL_AUTH_STRAVA_SECRET = os.environ["SOCIAL_AUTH_STRAVA_SECRET"]
 
+if os.name == 'nt':
+    VENV_BASE = os.environ['VIRTUAL_ENV']
+    os.environ['PATH'] = os.path.join(VENV_BASE, 'Lib\\site-packages\\osgeo') + ';' + os.environ['PATH']
+    os.environ['PROJ_LIB'] = os.path.join(VENV_BASE, 'Lib\\site-packages\\osgeo\\data\\proj') + ';' + os.environ['PATH']
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
@@ -42,6 +47,7 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
+    "uploadgpx.apps.UploadgpxConfig",
     "getdata.apps.GetdataConfig", # Include getdata app
     "register.apps.RegisterConfig", # Include register app
     "django.contrib.admin",

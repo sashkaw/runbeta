@@ -27,4 +27,5 @@ urlpatterns = [
     path("register/", include("register.urls")), 
     path("getdata/", include("getdata.urls")),
     path("oauth/", include("social_django.urls", namespace="social")),
+    path("uploadgpx/", include('uploadgpx.urls')),
 ]
