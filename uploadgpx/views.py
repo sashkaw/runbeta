@@ -1,7 +1,7 @@
 from django.shortcuts import render
 from django.http import HttpResponseRedirect
 from django.contrib.gis.geos import Point, LineString, MultiLineString
-from uploadgpx.forms import UploadGpxForm
+from uploadgpx.Forms import UploadGpxForm
 from uploadgpx.models import GpxFile, GpxPoint, GpxTrack
 from django.conf import settings
 
@@ -44,7 +44,7 @@ def upload_gpx(request):
     template = 'uploadgpx/uploadgpx.html'
     if request.method =='POST':
         file_instance = GpxFile()
-        form = UploadGpxForm(request.POST, request.FILES, instance=file_instance)
+        form = UploadGpxForm(request.POST, request.FILES)
         if form.is_valid():
             form.save()
             SaveGPXtoPostGIS(request.FILES['gpx_file'], file_instance)
