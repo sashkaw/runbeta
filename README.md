@@ -27,3 +27,6 @@ Web app built with Django using the Strava API and geospatial terrain analysis t
 - If you run into Docker + postgres / DB issues and you want to start from scratch:
 	- Delete the 'data' folder in the repo that is created when you build the image
 	- Run `docker system prune -a` (caution: this deletes all unused images so proceed with care)
+
+# Sources:
+- Heart rate prediction code based on <a href=https://github.com/rikluost/athlete_hr_predict>athlete_hr_predict (MIT License)</a> by <a href=https://github.com/rikluost>rikluost</a>.
